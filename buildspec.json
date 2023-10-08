@@ -44,11 +44,11 @@
             "bundleId": "com.example.obs-plugintemplate"
         }
     },
-    "name": "obs-plugintemplate",
+    "name": "autovod-plugin",
     "version": "1.0.0",
-    "author": "Your Name Here",
-    "website": "https://example.com",
-    "email": "me@example.com",
+    "author": "True Finals LLC",
+    "website": "https://truefinals.com",
+    "email": "tom@truefinals.com",
     "uuids": {
         "macosPackage": "00000000-0000-0000-0000-000000000000",
         "macosInstaller": "00000000-0000-0000-0000-000000000000",
