@@ -4,9 +4,8 @@
 extern "C" {
 #endif
 
-#ifdef __arm64
-
-#include <tesseract/capi.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 struct frame_data {
 	uint8_t *rgba_data;
@@ -23,12 +22,10 @@ struct expected_pixel_area {
 	uint32_t endy;
 };
 
+float img_check_expected_pixels(struct frame_data *frame, struct expected_pixel_area *area);
+void img_write_png(struct frame_data *frame, const char *filename);
 void frame_data_init(struct frame_data *frame, uint32_t width, uint32_t height);
 void frame_data_destroy(struct frame_data *frame);
-bool detect_loadin_screen(struct frame_data *frame);
-void detect_smash_data(TessBaseAPI *tess, struct frame_data *frame);
-
-#endif // __arm64
 
 #ifdef __cplusplus
 }

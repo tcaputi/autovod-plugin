@@ -65,6 +65,11 @@ if(ENABLE_QT)
                AUTORCC ON)
 endif()
 
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.c src/detect.c)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE 
+  src/game-detect/smash-ultimate.c
+  src/img-utils.c 
+  src/ocr.c 
+  src/plugin-main.c 
+  src/string-utils.c)
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

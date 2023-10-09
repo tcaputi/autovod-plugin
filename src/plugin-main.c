@@ -16,15 +16,15 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#ifdef __arm64
-
-#include <tesseract/capi.h>
 #include <obs-module.h>
 #include <util/platform.h>
 #include <util/threading.h>
 #include <plugin-support.h>
 #include <stdio.h>
-#include "detect.h"
+#include <string.h>
+#include "img-utils.h"
+#include "ocr.h"
+#include "game-detect/smash-ultimate.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
@@ -42,7 +42,6 @@ struct autovod_ctx {
 	struct obs_source *source;
 	gs_texrender_t *texrender;
 	gs_stagesurf_t *staging_surface;
-	TessBaseAPI *tess;
 	char *out_path;
 	uint32_t width;
 	uint32_t height;
@@ -68,7 +67,7 @@ static void *autovod_thread(void *data)
 		}
 
 		pthread_mutex_unlock(&autovod->mutex);
-		detect_smash_data(autovod->tess, autovod->capture_frame);
+		ssbu_detect(autovod->capture_frame);
 		pthread_mutex_lock(&autovod->mutex);
 
 		frame_data_destroy(autovod->capture_frame);
@@ -139,12 +138,6 @@ static void autovod_on_destroy(void *data)
 		autovod->thread = 0;
 	}
 
-	if (autovod->tess) {
-		TessBaseAPIEnd(autovod->tess);
-		TessBaseAPIDelete(autovod->tess);
-		autovod->tess = NULL;
-	}
-
 	if (autovod->texrender) {
 		obs_enter_graphics();
 		gs_texrender_destroy(autovod->texrender);
@@ -185,19 +178,6 @@ static void *autovod_on_create(obs_data_t *settings, obs_source_t *context)
 	obs_source_t *target = obs_filter_get_target(autovod->source);
 	signal_handler_t *sh = obs_source_get_signal_handler(target);
 	signal_handler_connect(sh, "remove", source_removed_callback, autovod);
-
-	autovod->tess = TessBaseAPICreate();
-	ret = TessBaseAPIInit3(autovod->tess, NULL, "eng");
-	if (ret != 0) {
-		obs_log(LOG_ERROR, "failed to initialize tesseract");
-		goto error;
-	}
-
-	TessBaseAPISetPageSegMode(autovod->tess, PSM_SINGLE_BLOCK);
-	TessBaseAPISetSourceResolution(autovod->tess, 700);
-	TessBaseAPISetVariable(autovod->tess, "language_model_penalty_non_dict_word", "0");
-	TessBaseAPISetVariable(autovod->tess, "tessedit_char_whitelist",
-			       "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789&./- ");
 
 	ret = pthread_create(&autovod->thread, NULL, autovod_thread, autovod);
 	if (ret != 0) {
@@ -321,7 +301,7 @@ static void autovod_on_render(void *data, gs_effect_t *unused_effect)
 				.height = autovod->height,
 			};
 
-			if (detect_loadin_screen(&tmp_frame)) {
+			if (ssbu_detect_loadin_screen(&tmp_frame)) {
 				struct frame_data *frame = bzalloc(sizeof(struct frame_data));
 				frame_data_init(frame, autovod->width, autovod->height);
 
@@ -366,6 +346,7 @@ struct obs_source_info autovod_def = {
 
 bool obs_module_load(void)
 {
+	ocr_init();
 	obs_register_source(&autovod_def);
 	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
 	return true;
@@ -373,24 +354,6 @@ bool obs_module_load(void)
 
 void obs_module_unload(void)
 {
+	ocr_destroy();
 	obs_log(LOG_INFO, "plugin unloaded");
 }
-
-#else // __arm64
-
-#include <obs-module.h>
-#include <plugin-support.h>
-
-//TODO: why can't i build the universal version
-bool obs_module_load(void)
-{
-	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
-	return true;
-}
-
-void obs_module_unload(void)
-{
-	obs_log(LOG_INFO, "plugin unloaded");
-}
-
-#endif // __arm64
