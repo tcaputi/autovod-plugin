@@ -30,7 +30,8 @@ OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 #define SETTINGS_OUT_PATH "out_path"
-#define SETTINGS_INTERVAL "interval"
+#define DETECT_INTERVAL 0.1f
+#define CAPTURE_INTERVAL 4.0f
 
 struct autovod_ctx {
 	pthread_mutex_t mutex;
@@ -43,10 +44,10 @@ struct autovod_ctx {
 	gs_stagesurf_t *staging_surface;
 	TessBaseAPI *tess;
 	char *out_path;
-	float interval;
 	uint32_t width;
 	uint32_t height;
-	float seconds_since_capture;
+	float seconds_since_last_detect;
+	float seconds_since_last_capture;
 	struct frame_data *capture_frame;
 };
 
@@ -101,7 +102,6 @@ static obs_properties_t *autovod_get_properties(void *data)
 
 	obs_properties_add_path(props, SETTINGS_OUT_PATH, "Destination", OBS_PATH_DIRECTORY, "*.*",
 				NULL);
-	obs_properties_add_float(props, SETTINGS_INTERVAL, "Interval (seconds)", 0.25, 10, 0.25);
 
 	return props;
 }
@@ -109,7 +109,6 @@ static obs_properties_t *autovod_get_properties(void *data)
 static void autovod_get_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, SETTINGS_OUT_PATH, "/Users/Tom/Downloads");
-	obs_data_set_default_double(settings, SETTINGS_INTERVAL, 2.0f);
 }
 
 static void autovod_on_update(void *data, obs_data_t *settings)
@@ -117,16 +116,13 @@ static void autovod_on_update(void *data, obs_data_t *settings)
 	struct autovod_ctx *autovod = data;
 
 	const char *out_path = obs_data_get_string(settings, SETTINGS_OUT_PATH);
-	double interval = obs_data_get_double(settings, SETTINGS_INTERVAL);
 
 	//TODO: check how the memory management works here (out_path is a string)
 	pthread_mutex_lock(&autovod->mutex);
 	autovod->out_path = (char *)out_path;
-	autovod->interval = interval;
 	pthread_mutex_unlock(&autovod->mutex);
 
-	obs_log(LOG_INFO, "settings updated: out_path='%s', interval=%f", autovod->out_path,
-		autovod->interval);
+	obs_log(LOG_INFO, "settings updated: out_path='%s'", autovod->out_path);
 }
 
 static void autovod_on_destroy(void *data)
@@ -234,7 +230,8 @@ static void autovod_on_tick(void *data, float seconds)
 			gs_stagesurface_destroy(autovod->staging_surface);
 			obs_leave_graphics();
 			autovod->staging_surface = NULL;
-			autovod->seconds_since_capture = 0;
+			autovod->seconds_since_last_detect = 0;
+			autovod->seconds_since_last_capture = 0;
 		}
 
 		return;
@@ -258,7 +255,8 @@ static void autovod_on_tick(void *data, float seconds)
 		obs_leave_graphics();
 	}
 
-	autovod->seconds_since_capture += seconds;
+	autovod->seconds_since_last_detect += seconds;
+	autovod->seconds_since_last_capture += seconds;
 
 	pthread_mutex_unlock(&autovod->mutex);
 }
@@ -268,11 +266,13 @@ static void autovod_on_render(void *data, gs_effect_t *unused_effect)
 	struct autovod_ctx *autovod = data;
 	UNUSED_PARAMETER(unused_effect);
 
-	bool capture = autovod->seconds_since_capture >= autovod->interval;
+	bool detect_cooldown = autovod->seconds_since_last_detect >= DETECT_INTERVAL;
+	bool capture_cooldown = autovod->seconds_since_last_capture >= CAPTURE_INTERVAL;
 	obs_source_t *target = obs_filter_get_target(autovod->source);
 	obs_source_t *parent = obs_filter_get_parent(autovod->source);
 
-	if (!parent || !autovod->width || !autovod->height || !capture) {
+	if (!parent || !autovod->width || !autovod->height || !detect_cooldown ||
+	    !capture_cooldown) {
 		obs_source_skip_video_filter(autovod->source);
 		return;
 	}
@@ -317,10 +317,20 @@ static void autovod_on_render(void *data, gs_effect_t *unused_effect)
 			//TODO: handle case where linesize != width * 4
 			//		handle case where image isnt processed before next frame
 			//		goto error handling if allocating fails
-			memcpy(frame->rgba_data, data, linesize * autovod->height);
-			autovod->capture_frame = frame;
-			autovod->seconds_since_capture = 0;
-			pthread_cond_broadcast(&autovod->cv);
+
+			struct frame_data tmp_frame = {
+				.rgba_data = data,
+				.width = autovod->width,
+				.height = autovod->height,
+			};
+
+			if (detect_loadin_screen(&tmp_frame)) {
+				memcpy(frame->rgba_data, data, linesize * autovod->height);
+				autovod->capture_frame = frame;
+				autovod->seconds_since_last_capture = 0;
+				pthread_cond_broadcast(&autovod->cv);
+			}
+			autovod->seconds_since_last_detect = 0;
 
 			gs_stagesurface_unmap(autovod->staging_surface);
 		}

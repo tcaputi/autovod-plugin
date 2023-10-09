@@ -16,7 +16,7 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 	{
 		// top left corner
 		.rgba = {0x36, 0x43, 0x48, 0xFF},
-		.pixel_threshold = 28,
+		.pixel_threshold = 10,
 		.startx = 0,
 		.endx = 16,
 		.starty = 0,
@@ -25,7 +25,7 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 	{
 		// top left center
 		.rgba = {0x36, 0x43, 0x48, 0xFF},
-		.pixel_threshold = 28,
+		.pixel_threshold = 10,
 		.startx = 480,
 		.endx = 496,
 		.starty = 0,
@@ -34,7 +34,7 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 	{
 		// top right center
 		.rgba = {0x36, 0x43, 0x48, 0xFF},
-		.pixel_threshold = 28,
+		.pixel_threshold = 10,
 		.startx = 1440,
 		.endx = 1456,
 		.starty = 0,
@@ -43,7 +43,7 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 	{
 		// center,
 		.rgba = {0x36, 0x43, 0x48, 0xFF},
-		.pixel_threshold = 28,
+		.pixel_threshold = 10,
 		.startx = 968,
 		.endx = 984,
 		.starty = 0,
@@ -53,7 +53,7 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 	{
 		// top left corner, beginning of name background
 		.rgba = {0x0f, 0x10, 0x18, 0xFF},
-		.pixel_threshold = 28,
+		.pixel_threshold = 10,
 		.startx = 0,
 		.endx = 1,
 		.starty = 80,
@@ -62,7 +62,7 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 	{
 		// center of name background
 		.rgba = {0x0f, 0x10, 0x18, 0xFF},
-		.pixel_threshold = 28,
+		.pixel_threshold = 10,
 		.startx = 960,
 		.endx = 961,
 		.starty = 80,
@@ -70,41 +70,7 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 	},
 };
 
-//for testing
-const char *ASCII_CHARS = "@%#*+=-:. ";
-
-void print_frame_to_ascii_file(struct frame_data *frame, const char *filename)
-{
-	FILE *file = fopen(filename, "w");
-	if (!file) {
-		fprintf(stderr, "Failed to open file %s for writing.\n", filename);
-		return;
-	}
-
-	for (uint32_t y = 0; y < frame->height; y++) {
-		for (uint32_t x = 0; x < frame->width; x++) {
-			uint32_t index = (y * frame->width + x) * 4; // 4 for RGBA
-
-			// Average the R, G, and B values to get the brightness
-			uint8_t brightness =
-				(frame->rgba_data[index] + frame->rgba_data[index + 1] +
-				 frame->rgba_data[index + 2]) /
-				3;
-
-			// Map brightness to an ASCII character
-			char pixel_char =
-				ASCII_CHARS[(brightness * (strlen(ASCII_CHARS) - 1)) / 255];
-
-			fputc(pixel_char, file);
-			fputc(pixel_char, file); // Repeat for better horizontal resolution
-		}
-		fputc('\n', file);
-	}
-
-	fclose(file);
-}
-
-void write_png(struct frame_data *frame, const char *filename)
+static void write_png(struct frame_data *frame, const char *filename)
 {
 	FILE *fp = NULL;
 	png_structp png = NULL;
@@ -217,11 +183,10 @@ static float check_expected_pixels(struct frame_data *frame, struct expected_pix
 		}
 	}
 
-	obs_log(LOG_INFO, "Matched pixels: %d, total_pixels: %d", matched_pixels, total_pixels);
 	return (float)matched_pixels / (float)total_pixels;
 }
 
-static bool is_loadin_screen(struct frame_data *frame)
+bool detect_loadin_screen(struct frame_data *frame)
 {
 	float matches = 0.0f;
 	uint32_t num_areas = sizeof(loadin_screen_detector) / sizeof(struct expected_pixel_area);
@@ -230,9 +195,7 @@ static bool is_loadin_screen(struct frame_data *frame)
 		matches += check_expected_pixels(frame, &loadin_screen_detector[i]);
 	}
 
-	obs_log(LOG_INFO, "matches: %f, num areas: %d, result: %f", matches, num_areas,
-		matches / (float)num_areas);
-	return matches / (float)num_areas > 0.6f;
+	return matches / (float)num_areas > 0.9f;
 }
 
 static void get_character_name_image(struct frame_data *in_frame, struct frame_data *out_frame,
@@ -264,8 +227,6 @@ static void get_character_name_image(struct frame_data *in_frame, struct frame_d
 	}
 }
 
-static int png_count = 11;
-
 static void get_character_name_boxes(struct frame_data *in_frame, struct frame_data *out_frames)
 {
 	frame_data_init(&out_frames[0], in_frame->width * 3 / 8, in_frame->height / 8);
@@ -285,24 +246,15 @@ static void get_character_name_boxes(struct frame_data *in_frame, struct frame_d
 	);
 
 	// for debugging
-	if (png_count > 10) {
-		obs_log(LOG_INFO, "Writing PNG files");
-		write_png(&out_frames[0], "/Users/Tom/Desktop/character0.png");
-		write_png(&out_frames[1], "/Users/Tom/Desktop/character1.png");
-		write_png(in_frame, "/Users/Tom/Desktop/both.png");
-		png_count = 0;
-	} else {
-		png_count++;
-	}
+	obs_log(LOG_INFO, "Writing PNG files");
+	write_png(&out_frames[0], "/Users/Tom/Desktop/character0.png");
+	write_png(&out_frames[1], "/Users/Tom/Desktop/character1.png");
+	write_png(in_frame, "/Users/Tom/Desktop/both.png");
 }
 
 void detect_smash_data(TessBaseAPI *tess, struct frame_data *frame)
 {
 	struct frame_data name_boxes[NUM_SMASH_CHARACTERS] = {0};
-
-	bool should_detect_chars = is_loadin_screen(frame);
-	if (!should_detect_chars)
-		return;
 
 	obs_log(LOG_INFO, "--------------------------------------------------");
 	obs_log(LOG_INFO, "LOADIN SCREEN DETECTED");

@@ -25,6 +25,7 @@ struct expected_pixel_area {
 
 void frame_data_init(struct frame_data *frame, uint32_t width, uint32_t height);
 void frame_data_destroy(struct frame_data *frame);
+bool detect_loadin_screen(struct frame_data *frame);
 void detect_smash_data(TessBaseAPI *tess, struct frame_data *frame);
 
 #endif // __arm64
