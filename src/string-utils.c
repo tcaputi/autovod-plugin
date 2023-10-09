@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -13,7 +14,7 @@ static int min(int a, int b, int c)
 	return min;
 }
 
-static int str_levenshtein_distance(const char *str1, const char *str2)
+unsigned str_levenshtein_distance(const char *str1, const char *str2)
 {
 	uint32_t len1 = (uint32_t)strlen(str1);
 	uint32_t len2 = (uint32_t)strlen(str2);
@@ -38,16 +39,6 @@ static int str_levenshtein_distance(const char *str1, const char *str2)
 	free(col);
 	free(prevCol);
 	return result;
-}
-
-bool str_approximate_match(const char *str1, const char *str2, unsigned threshold)
-{
-	if (str1[0] == '\0' || str2[0] == '\0') {
-		return false;
-	}
-
-	uint32_t distance = str_levenshtein_distance(str1, str2);
-	return distance < threshold;
 }
 
 void str_remove_excess_whitespace(char *str)

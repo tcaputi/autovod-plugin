@@ -6,7 +6,7 @@
 #include "smash-ultimate.h"
 
 #define NUM_SMASH_CHARACTERS 2
-#define LEVENSHTIEN_THRESHOLD 4
+#define LEVENSHTIEN_MAX_THRESHOLD 4
 
 static char *character_list[] = {
 	"MARIO",
@@ -156,16 +156,31 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 
 static char *get_character_name(char *text)
 {
+	uint32_t best_idx = 0;
+	uint32_t best_score = UINT32_MAX;
+
 	if (text == NULL) {
 		return NULL;
 	}
 
 	for (uint32_t i = 0; i < sizeof(character_list) / sizeof(character_list[0]); i++) {
-		if (str_approximate_match(text, character_list[i], LEVENSHTIEN_THRESHOLD)) {
-			return character_list[i];
+		uint32_t score = str_levenshtein_distance(text, character_list[i]);
+
+		if (score < best_score) {
+			best_idx = i;
+			best_score = score;
+		}
+
+		if (score == 0) {
+			break;
 		}
 	}
-	return NULL;
+
+	if (best_score > LEVENSHTIEN_MAX_THRESHOLD) {
+		return NULL;
+	}
+
+	return character_list[best_idx];
 }
 
 static void get_character_name_image(struct frame_data *in_frame, struct frame_data *out_frame,

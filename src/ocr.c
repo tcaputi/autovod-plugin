@@ -68,7 +68,6 @@ char *ocr_analyze_for_text(struct frame_data *frame)
 	TessBaseAPISetImage2(tess, pixs);
 	char *text = TessBaseAPIGetUTF8Text(tess);
 	str_remove_excess_whitespace(text);
-	obs_log(LOG_INFO, "Text: %s", text);
 
 	pixDestroy(&pixs);
 	return text;
