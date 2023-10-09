@@ -10,7 +10,7 @@
 #ifdef __arm64
 
 #define NUM_SMASH_CHARACTERS 2
-#define LEVENSHTIEN_THRESHOLD 2
+#define LEVENSHTIEN_THRESHOLD 4
 
 static struct expected_pixel_area loadin_screen_detector[] = {
 	// GREY AREAS
@@ -74,8 +74,88 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 static char *character_list[] = {
 	"MARIO",
 	"DONKEY KONG",
+	"LINK",
+	"SAMUS",
+	"DARK SAMUS",
+	"YOSHI",
+	"KIRBY",
+	"FOX",
+	"PIKACHU",
+	"LUIGI",
+	"NESS",
+	"CAPTAIN FALCON",
+	"JIGGLYPUFF",
+	"PEACH",
+	"DAISY",
+	"BOWSER",
+	"ICE CLIMBERS",
+	"SHEIK",
+	"ZELDA",
+	"DR. MARIO",
+	"PICHU",
+	"FALCO",
+	"MARTH",
+	"LUCINA",
+	"YOUNG LINK",
+	"GANONDORF",
+	"MEWTWO",
+	"ROY",
+	"CHROM",
+	"MR. GAME & WATCH",
+	"META KNIGHT",
+	"PIT",
+	"DARK PIT",
 	"ZERO SUIT SAMUS",
+	"WARIO",
+	"SNAKE",
+	"IKE",
+	"POKEMON TRAINER",
+	"DIDDY KONG",
+	"LUCAS",
+	"SONIC",
+	"KING DEDEDE",
+	"OLIMAR",
+	"LUCARIO",
+	"R.O.B.",
+	"TOON LINK",
+	"WOLF",
+	"VILLAGER",
+	"MEGA MAN",
+	"WII FIT TRAINER",
+	"ROSALINA & LUMA",
+	"LITTLE MAC",
+	"GRENINJA",
+	"PALUTENA",
+	"PAC-MAN",
+	"ROBIN",
+	"SHULK",
+	"BOWSER JR.",
+	"DUCK HUNT",
+	"RYU",
+	"KEN",
+	"CLOUD",
+	"CORRIN",
+	"BAYONETTA",
+	"INKLING",
+	"RIDLEY",
+	"SIMON",
+	"RICHTER",
+	"KING K. ROOL",
+	"ISABELLE",
+	"INCINEROAR",
+	"PIRANHA PLANT",
+	"JOKER",
+	"HERO",
 	"BANJO & KAZOOIE",
+	"TERRY",
+	"BYLETH",
+	"MIN MIN",
+	"STEVE",
+	"SEPHIROTH",
+	"PYRA/MYTHRA",
+	"KAZUYA",
+	"SORA",
+	// Mii's cant be recognized since they get separate names
 };
 
 static void write_png(struct frame_data *frame, const char *filename)
@@ -145,6 +225,9 @@ static void remove_excess_string_whitespace(char *str)
 		}
 	}
 
+	if (write_index != 0 && str[write_index - 1] == ' ') // Remove trailing space
+		write_index--;
+
 	str[write_index] = '\0'; // Null terminate the string
 }
 
@@ -187,6 +270,10 @@ static int levenshtein_distance(const char *str1, const char *str2)
 
 static bool strings_match(const char *str1, const char *str2, unsigned threshold)
 {
+	if (str1[0] == '\0' || str2[0] == '\0') {
+		return false;
+	}
+
 	uint32_t distance = levenshtein_distance(str1, str2);
 	return distance < threshold;
 }
