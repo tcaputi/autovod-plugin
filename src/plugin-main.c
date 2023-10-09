@@ -30,7 +30,7 @@ OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 #define SETTINGS_OUT_PATH "out_path"
-#define DETECT_INTERVAL 0.1f
+#define DETECT_INTERVAL 0.05f
 #define CAPTURE_INTERVAL 4.0f
 
 struct autovod_ctx {
@@ -302,9 +302,6 @@ static void autovod_on_render(void *data, gs_effect_t *unused_effect)
 		gs_texrender_end(autovod->texrender);
 	}
 
-	struct frame_data *frame = bzalloc(sizeof(struct frame_data));
-	frame_data_init(frame, autovod->width, autovod->height);
-
 	gs_texture_t *tex = gs_texrender_get_texture(autovod->texrender);
 	if (tex) {
 		gs_stage_texture(autovod->staging_surface, tex);
@@ -325,6 +322,9 @@ static void autovod_on_render(void *data, gs_effect_t *unused_effect)
 			};
 
 			if (detect_loadin_screen(&tmp_frame)) {
+				struct frame_data *frame = bzalloc(sizeof(struct frame_data));
+				frame_data_init(frame, autovod->width, autovod->height);
+
 				memcpy(frame->rgba_data, data, linesize * autovod->height);
 				autovod->capture_frame = frame;
 				autovod->seconds_since_last_capture = 0;

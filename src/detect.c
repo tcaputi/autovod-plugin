@@ -10,6 +10,7 @@
 #ifdef __arm64
 
 #define NUM_SMASH_CHARACTERS 2
+#define LEVENSHTIEN_THRESHOLD 2
 
 static struct expected_pixel_area loadin_screen_detector[] = {
 	// GREY AREAS
@@ -56,8 +57,8 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 		.pixel_threshold = 10,
 		.startx = 0,
 		.endx = 1,
-		.starty = 80,
-		.endy = 96,
+		.starty = 34,
+		.endy = 42,
 	},
 	{
 		// center of name background
@@ -65,9 +66,16 @@ static struct expected_pixel_area loadin_screen_detector[] = {
 		.pixel_threshold = 10,
 		.startx = 960,
 		.endx = 961,
-		.starty = 80,
-		.endy = 96,
+		.starty = 34,
+		.endy = 42,
 	},
+};
+
+static char *character_list[] = {
+	"MARIO",
+	"DONKEY KONG",
+	"ZERO SUIT SAMUS",
+	"BANJO & KAZOOIE",
 };
 
 static void write_png(struct frame_data *frame, const char *filename)
@@ -120,6 +128,83 @@ error:
 		fclose(fp);
 }
 
+static void remove_excess_string_whitespace(char *str)
+{
+	int write_index = 0; // Where to write the next character
+	bool last_was_space = false;
+
+	for (int read_index = 0; str[read_index]; read_index++) {
+		if (isspace(str[read_index])) {
+			if (!last_was_space) { // Only write a space if the last written character wasn't a space
+				str[write_index++] = ' ';
+				last_was_space = true;
+			}
+		} else {
+			str[write_index++] = str[read_index];
+			last_was_space = false;
+		}
+	}
+
+	str[write_index] = '\0'; // Null terminate the string
+}
+
+static int min(int a, int b, int c)
+{
+	int min = a;
+	if (b < min)
+		min = b;
+	if (c < min)
+		min = c;
+	return min;
+}
+
+static int levenshtein_distance(const char *str1, const char *str2)
+{
+	uint32_t len1 = (uint32_t)strlen(str1);
+	uint32_t len2 = (uint32_t)strlen(str2);
+	uint32_t *col = malloc((len2 + 1) * sizeof(int));
+	uint32_t *prevCol = malloc((len2 + 1) * sizeof(int));
+
+	for (uint32_t i = 0; i <= len2; i++) {
+		prevCol[i] = i;
+	}
+
+	for (uint32_t i = 0; i < len1; i++) {
+		col[0] = i + 1;
+		for (uint32_t j = 0; j < len2; j++) {
+			col[j + 1] = min(prevCol[j + 1] + 1, col[j] + 1,
+					 prevCol[j] + (str1[i] == str2[j] ? 0 : 1));
+		}
+		uint32_t *temp = col;
+		col = prevCol;
+		prevCol = temp;
+	}
+	uint32_t result = prevCol[len2];
+	free(col);
+	free(prevCol);
+	return result;
+}
+
+static bool strings_match(const char *str1, const char *str2, unsigned threshold)
+{
+	uint32_t distance = levenshtein_distance(str1, str2);
+	return distance < threshold;
+}
+
+static char *get_character_name(char *text)
+{
+	if (text == NULL) {
+		return NULL;
+	}
+
+	for (uint32_t i = 0; i < sizeof(character_list) / sizeof(character_list[0]); i++) {
+		if (strings_match(text, character_list[i], LEVENSHTIEN_THRESHOLD)) {
+			return character_list[i];
+		}
+	}
+	return NULL;
+}
+
 static char *analyze_for_text(TessBaseAPI *tess, struct frame_data *frame)
 {
 	PIX *pixs = pixCreate(frame->width, frame->height, 32); // 32 for RGBA
@@ -138,24 +223,12 @@ static char *analyze_for_text(TessBaseAPI *tess, struct frame_data *frame)
 	}
 
 	TessBaseAPISetImage2(tess, pixs);
-	TessBaseAPIRecognize(tess, NULL);
+	char *text = TessBaseAPIGetUTF8Text(tess);
+	remove_excess_string_whitespace(text);
+	obs_log(LOG_INFO, "Text: %s", text);
 
-	TessResultIterator *ri = TessBaseAPIGetIterator(tess);
-	TessPageIteratorLevel level = RIL_BLOCK;
-
-	do {
-		const char *text = TessResultIteratorGetUTF8Text(ri, level);
-		obs_log(LOG_INFO, "Text: %s", text);
-		TessDeleteText(text);
-	} while (TessResultIteratorNext(ri, level));
-
-	TessResultIteratorDelete(ri);
 	pixDestroy(&pixs);
-
-	//TODO: temporary to fit the rest of the code
-	char *out_text = malloc(1);
-	out_text[0] = '\0';
-	return out_text;
+	return text;
 }
 
 static bool compare_pixel_colors(uint8_t *color1, uint8_t *color2, uint8_t threshold)
@@ -195,7 +268,7 @@ bool detect_loadin_screen(struct frame_data *frame)
 		matches += check_expected_pixels(frame, &loadin_screen_detector[i]);
 	}
 
-	return matches / (float)num_areas > 0.9f;
+	return matches / (float)num_areas >= 1.0f;
 }
 
 static void get_character_name_image(struct frame_data *in_frame, struct frame_data *out_frame,
@@ -263,7 +336,9 @@ void detect_smash_data(TessBaseAPI *tess, struct frame_data *frame)
 	for (int i = 0; i < NUM_SMASH_CHARACTERS; i++) {
 		char *text = analyze_for_text(tess, &name_boxes[i]);
 		frame_data_destroy(&name_boxes[i]);
-		//TODO: do something with the text
+
+		char *character_name = get_character_name(text);
+		obs_log(LOG_INFO, "Original: %s, Result: %s", text, character_name);
 		free(text);
 	}
 }
