@@ -201,7 +201,7 @@ static void *autovod_on_create(obs_data_t *settings, obs_source_t *context)
 	TessBaseAPISetSourceResolution(autovod->tess, 700);
 	TessBaseAPISetVariable(autovod->tess, "language_model_penalty_non_dict_word", "0");
 	TessBaseAPISetVariable(autovod->tess, "tessedit_char_whitelist",
-			       "ABCDEFGHIJKLMNOPQRSTUVWXYZ&./");
+			       "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789&./- ");
 
 	ret = pthread_create(&autovod->thread, NULL, autovod_thread, autovod);
 	if (ret != 0) {
