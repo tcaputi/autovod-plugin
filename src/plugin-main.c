@@ -31,7 +31,7 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 #define SETTINGS_OUT_PATH "out_path"
 #define DETECT_INTERVAL 0.05f
-#define CAPTURE_INTERVAL 4.0f
+#define CAPTURE_INTERVAL 10.0f
 
 struct autovod_ctx {
 	pthread_mutex_t mutex;
